@@ -20,19 +20,112 @@ const emit = defineEmits(['add-to-wishlist', 'remove-from-wishlist']);
 // ─── wowaudit import ──────────────────────────────────────────────────────────
 
 const importApiKey    = ref('');
-const importResult    = ref(null);   // raw JSON string on success
+const importResult    = ref(null);   // condensed wishlist JSON string for display
+const importWarnings  = ref([]);     // warning strings for unrecognised entities
 const importError     = ref('');
 const importLoading   = ref(false);
 
+/**
+ * Convert the raw wowaudit API response into a condensed object that only
+ * contains mythic-difficulty entries for Raiders, Bosses, and LootItems that
+ * are already present in the RosterHelper database.  Unrecognised entries are
+ * collected as warning strings.
+ *
+ * @param {object} json  Parsed wowaudit /v1/wishlists response.
+ * @returns {{ wishlists: object[], warnings: string[] }}
+ */
+function parseWowauditResponse(json) {
+  const warningSet = new Set();
+  const wishlists  = [];
+
+  // Build lookup maps (name → object, case-insensitive)
+  const raiderByName = new Map(
+    props.raiders.map((r) => [r.username.toLowerCase(), r]),
+  );
+  const bossByName = new Map(
+    props.bosses.map((b) => [b.name.toLowerCase(), b]),
+  );
+  // lootItem name → LootItem, keyed per boss
+  const lootByBoss = new Map(
+    props.bosses.map((b) => [
+      b.name.toLowerCase(),
+      new Map(b.loot.map((item) => [item.name.toLowerCase(), item])),
+    ]),
+  );
+
+  for (const char of json.characters ?? []) {
+    const raider = raiderByName.get(char.name.toLowerCase());
+    if (!raider) {
+      warningSet.add(`Character '${char.name}' is not in the RosterHelper roster`);
+      continue;
+    }
+
+    const entries = [];
+
+    for (const instance of char.instances ?? []) {
+      const mythicDiff = (instance.difficulties ?? []).find(
+        (d) => d.difficulty === 'mythic',
+      );
+      if (!mythicDiff) continue;
+
+      for (const encounter of mythicDiff.wishlist?.encounters ?? []) {
+        if (!encounter.items?.length) continue;
+
+        const boss = bossByName.get(encounter.name.toLowerCase());
+        if (!boss) {
+          warningSet.add(
+            `Boss '${encounter.name}' (from instance '${instance.name}') is not in RosterHelper`,
+          );
+          continue;
+        }
+
+        const lootMap = lootByBoss.get(boss.name.toLowerCase());
+
+        for (const item of encounter.items) {
+          const lootItem = lootMap?.get(item.name.toLowerCase());
+          if (!lootItem) {
+            warningSet.add(
+              `Item '${item.name}' on boss '${encounter.name}' is not in RosterHelper`,
+            );
+            continue;
+          }
+
+          const wish = item.wishes?.[0];
+          entries.push({
+            bossId:      boss.id,
+            bossName:    boss.name,
+            itemId:      lootItem.id,
+            itemName:    lootItem.name,
+            score:       wish?.absolute    ?? 0,
+            percentage:  wish?.percentage  ?? 0,
+          });
+        }
+      }
+    }
+
+    if (entries.length > 0) {
+      wishlists.push({
+        raiderId:   raider.id,
+        raiderName: raider.username,
+        entries,
+      });
+    }
+  }
+
+  return { wishlists, warnings: Array.from(warningSet) };
+}
+
 async function fetchWowauditWishlists() {
   if (!importApiKey.value.trim()) {
-    importError.value  = 'Please enter an API key.';
-    importResult.value = null;
+    importError.value   = 'Please enter an API key.';
+    importResult.value  = null;
+    importWarnings.value = [];
     return;
   }
-  importLoading.value = true;
-  importError.value   = '';
-  importResult.value  = null;
+  importLoading.value  = true;
+  importError.value    = '';
+  importResult.value   = null;
+  importWarnings.value = [];
   try {
     const url      = `/api/wowaudit/v1/wishlists?api_key=${encodeURIComponent(importApiKey.value.trim())}`;
     const response = await fetch(url);
@@ -40,7 +133,10 @@ async function fetchWowauditWishlists() {
     if (!response.ok) {
       importError.value = `Request failed (HTTP ${response.status}): ${text}`;
     } else {
-      importResult.value = text;
+      const parsed              = JSON.parse(text);
+      const { wishlists, warnings } = parseWowauditResponse(parsed);
+      importWarnings.value      = warnings;
+      importResult.value        = JSON.stringify(wishlists, null, 2);
     }
   } catch (err) {
     importError.value = `Network error: ${err.message}`;
@@ -156,6 +252,11 @@ function handleRemove(lootItemId) {
         </button>
       </div>
       <p v-if="importError" class="import-error">{{ importError }}</p>
+      <ul v-if="importWarnings.length" class="import-warnings">
+        <li v-for="(w, i) in importWarnings" :key="i" class="import-warning">
+          ⚠ {{ w }}
+        </li>
+      </ul>
       <pre v-if="importResult" class="import-result">{{ importResult }}</pre>
     </section>
 
@@ -557,6 +658,26 @@ function handleRemove(lootItemId) {
   color: var(--danger, #e05252);
   font-size: 0.85rem;
   margin: 0;
+}
+
+.import-warnings {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.import-warning {
+  font-size: 0.8rem;
+  color: var(--warning, #c97b1a);
+  background: color-mix(in srgb, var(--warning, #c97b1a) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warning, #c97b1a) 30%, transparent);
+  border-radius: 4px;
+  padding: 4px 10px;
 }
 
 .import-result {
