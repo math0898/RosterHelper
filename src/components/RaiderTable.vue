@@ -57,9 +57,10 @@ const BASE_COLUMNS_BOSS = [
 ];
 
 const BOSS_COLUMNS = [
-  { key: '_vault',    label: 'Vault',    sortable: true  },
-  { key: '_kills',    label: 'Kills',    sortable: true  },
-  { key: '_wishlist', label: 'Wishlist', sortable: false },
+  { key: '_vault',    label: 'Vault',       sortable: true  },
+  { key: '_kills',    label: 'Kills',       sortable: true  },
+  { key: '_wishlist', label: 'Wishlist',    sortable: false },
+  { key: '_wlAge',    label: 'WL Updated',  sortable: false },
 ];
 
 const ACTION_COLUMN = { key: '_actions', label: '', sortable: false };
@@ -178,6 +179,34 @@ function commitSpecChange(raider, newSpec) {
 
 function cancelEditSpec() {
   editingSpecId.value = null;
+}
+
+// ─── Wishlist age helpers (boss-view column) ──────────────────────────────────
+
+/**
+ * @param {import('../models/Raider.js').Raider} raider
+ * @returns {'fresh' | 'stale' | 'old'}
+ */
+function wishlistAgeClassFor(raider) {
+  const ts = raider.wishlistUpdatedAt;
+  if (!ts) return 'old';
+  const days = (Date.now() - new Date(ts).getTime()) / (1000 * 60 * 60 * 24);
+  if (days < 3) return 'fresh';
+  if (days < 7) return 'stale';
+  return 'old';
+}
+
+/**
+ * @param {import('../models/Raider.js').Raider} raider
+ * @returns {string}
+ */
+function wishlistAgeLabelFor(raider) {
+  const ts = raider.wishlistUpdatedAt;
+  if (!ts) return 'Never';
+  const days = Math.floor((Date.now() - new Date(ts).getTime()) / 86400000);
+  if (days === 0) return 'Today';
+  if (days === 1) return '1d ago';
+  return `${days}d ago`;
 }
 
 // ─── Inline rank editing ──────────────────────────────────────────────────────
@@ -314,6 +343,13 @@ function cancelEditRank() {
                 </span>
               </template>
               <span v-else class="no-wishlist">—</span>
+            </td>
+            <td class="col-wl-age">
+              <span
+                class="wl-age-pill"
+                :class="`wl-age-pill--${wishlistAgeClassFor(raider)}`"
+                :title="raider.wishlistUpdatedAt ? new Date(raider.wishlistUpdatedAt).toLocaleString() : 'Never updated'"
+              >{{ wishlistAgeLabelFor(raider) }}</span>
             </td>
           </template>
 
@@ -505,6 +541,36 @@ tbody tr:hover td {
 
 .no-wishlist {
   color: var(--text-muted);
+}
+
+/* ── Wishlist age pill (boss-view) ── */
+.col-wl-age {
+  white-space: nowrap;
+}
+
+.wl-age-pill {
+  font-size: 0.72rem;
+  font-weight: 600;
+  border-radius: 20px;
+  padding: 2px 8px;
+}
+
+.wl-age-pill--fresh {
+  background: rgba(34, 197, 94, 0.15);
+  color: #4ade80;
+  border: 1px solid rgba(34, 197, 94, 0.35);
+}
+
+.wl-age-pill--stale {
+  background: rgba(234, 179, 8, 0.15);
+  color: #facc15;
+  border: 1px solid rgba(234, 179, 8, 0.35);
+}
+
+.wl-age-pill--old {
+  background: rgba(239, 68, 68, 0.13);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.3);
 }
 
 .btn-remove {

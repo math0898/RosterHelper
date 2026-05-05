@@ -1,11 +1,12 @@
 <script setup>
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import AddRaiderForm from './components/AddRaiderForm.vue';
 import RaiderTable from './components/RaiderTable.vue';
 import BossesPage from './components/BossesPage.vue';
 import WishlistPage from './components/WishlistPage.vue';
 import { RosterStore } from './store/RosterStore.js';
 import { BossStore } from './store/BossStore.js';
+import { RAID_RANKS, SPEC_ROLES } from './models/wowData.js';
 
 // ─── Stores ──────────────────────────────────────────────────────────────────
 
@@ -80,6 +81,11 @@ function handleRemoveFromWishlist({ raiderId, lootItemId }) {
   raiders.value = rosterStore.getAll();
 }
 
+function handleSetWishlistUpdatedAt({ raiderId, updatedAt }) {
+  rosterStore.setWishlistUpdatedAt(raiderId, updatedAt);
+  raiders.value = rosterStore.getAll();
+}
+
 // ─── Boss-view mode ───────────────────────────────────────────────────────────
 
 /** The boss currently selected for boss-view mode in the roster table. Null = normal mode. */
@@ -88,6 +94,72 @@ const activeBoss = ref(null);
 function selectBossView(boss) {
   activeBoss.value = activeBoss.value?.id === boss.id ? null : boss;
 }
+
+// ─── Roster filter ────────────────────────────────────────────────────────────
+
+const ALL_ROLES = ['Tank', 'Healer', 'DPS'];
+
+/**
+ * 'whitelist': show only raiders whose rank/role is in the selected sets.
+ * 'blacklist': hide raiders whose rank or role is in the selected sets.
+ */
+const filterMode = ref('whitelist');
+
+/** Ranks/roles selected in whitelist mode (default: all included). */
+const wlRanks = ref(new Set(RAID_RANKS));
+const wlRoles = ref(new Set(ALL_ROLES));
+
+/** Ranks/roles selected in blacklist mode (default: none excluded). */
+const blRanks = ref(new Set());
+const blRoles = ref(new Set());
+
+function roleForRaider(raider) {
+  if (!raider.spec) return 'DPS';
+  return SPEC_ROLES[raider.spec] ?? 'DPS';
+}
+
+function toggleFilterRank(rank) {
+  if (filterMode.value === 'whitelist') {
+    const s = new Set(wlRanks.value);
+    s.has(rank) ? s.delete(rank) : s.add(rank);
+    wlRanks.value = s;
+  } else {
+    const s = new Set(blRanks.value);
+    s.has(rank) ? s.delete(rank) : s.add(rank);
+    blRanks.value = s;
+  }
+}
+
+function toggleFilterRole(role) {
+  if (filterMode.value === 'whitelist') {
+    const s = new Set(wlRoles.value);
+    s.has(role) ? s.delete(role) : s.add(role);
+    wlRoles.value = s;
+  } else {
+    const s = new Set(blRoles.value);
+    s.has(role) ? s.delete(role) : s.add(role);
+    blRoles.value = s;
+  }
+}
+
+function isRankActive(rank) {
+  return filterMode.value === 'whitelist' ? wlRanks.value.has(rank) : blRanks.value.has(rank);
+}
+
+function isRoleActive(role) {
+  return filterMode.value === 'whitelist' ? wlRoles.value.has(role) : blRoles.value.has(role);
+}
+
+const filteredRaiders = computed(() => {
+  return raiders.value.filter((r) => {
+    const role = roleForRaider(r);
+    if (filterMode.value === 'whitelist') {
+      return wlRanks.value.has(r.rank) && wlRoles.value.has(role);
+    } else {
+      return !blRanks.value.has(r.rank) && !blRoles.value.has(role);
+    }
+  });
+});
 </script>
 
 <template>
@@ -153,8 +225,45 @@ function selectBossView(boss) {
         </button>
       </div>
 
+      <!-- Rank / Role filter bar -->
+      <div class="filter-bar">
+        <span class="filter-label">Filter:</span>
+        <button
+          class="filter-mode-btn"
+          :class="{ 'filter-mode-btn--active': filterMode === 'whitelist' }"
+          @click="filterMode = 'whitelist'"
+          title="Show only selected ranks and roles"
+        >Show only</button>
+        <button
+          class="filter-mode-btn"
+          :class="{ 'filter-mode-btn--active': filterMode === 'blacklist' }"
+          @click="filterMode = 'blacklist'"
+          title="Hide selected ranks and roles"
+        >Exclude</button>
+
+        <span class="filter-divider">|</span>
+        <span class="filter-group-label">Rank:</span>
+        <button
+          v-for="rank in RAID_RANKS"
+          :key="rank"
+          class="filter-chip"
+          :class="{ 'filter-chip--active': isRankActive(rank) }"
+          @click="toggleFilterRank(rank)"
+        >{{ rank }}</button>
+
+        <span class="filter-divider">|</span>
+        <span class="filter-group-label">Role:</span>
+        <button
+          v-for="role in ALL_ROLES"
+          :key="role"
+          class="filter-chip"
+          :class="{ 'filter-chip--active': isRoleActive(role), [`filter-chip--role-${role.toLowerCase()}`]: true }"
+          @click="toggleFilterRole(role)"
+        >{{ role }}</button>
+      </div>
+
       <RaiderTable
-        :raiders="raiders"
+        :raiders="filteredRaiders"
         :active-boss="activeBoss"
         @remove-raider="handleRemoveRaider"
         @update-raider-spec="handleUpdateRaiderSpec"
@@ -180,6 +289,7 @@ function selectBossView(boss) {
         :bosses="bosses"
         @add-to-wishlist="handleAddToWishlist"
         @remove-from-wishlist="handleRemoveFromWishlist"
+        @set-wishlist-updated-at="handleSetWishlistUpdatedAt"
         @add-raider="handleAddRaider"
         @add-boss="handleAddBoss"
         @add-loot="handleAddLoot"
@@ -324,6 +434,106 @@ function selectBossView(boss) {
 }
 
 .boss-pill--clear:hover {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+/* ── Filter bar ── */
+.filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 14px;
+}
+
+.filter-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-muted);
+  white-space: nowrap;
+  margin-right: 2px;
+}
+
+.filter-group-label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.filter-divider {
+  color: var(--border);
+  font-weight: 300;
+  margin: 0 2px;
+}
+
+.filter-mode-btn {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 3px 10px;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.filter-mode-btn:hover {
+  color: var(--text-heading);
+}
+
+.filter-mode-btn--active {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface-2));
+}
+
+.filter-chip {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-weight: 500;
+  padding: 2px 10px;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.filter-chip:hover {
+  color: var(--text-heading);
+  border-color: var(--accent);
+}
+
+.filter-chip--active {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface-2));
+}
+
+.filter-chip--role-tank.filter-chip--active {
+  color: #60a5fa;
+  border-color: rgba(59, 130, 246, 0.6);
+  background: rgba(59, 130, 246, 0.12);
+}
+
+.filter-chip--role-healer.filter-chip--active {
+  color: #4ade80;
+  border-color: rgba(34, 197, 94, 0.5);
+  background: rgba(34, 197, 94, 0.1);
+}
+
+.filter-chip--role-dps.filter-chip--active {
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.5);
   background: rgba(239, 68, 68, 0.1);
 }
 </style>

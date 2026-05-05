@@ -25,6 +25,7 @@ const emit = defineEmits([
   'add-raider',
   'add-boss',
   'add-loot',
+  'set-wishlist-updated-at',
 ]);
 
 // ─── wowaudit import ──────────────────────────────────────────────────────────
@@ -199,6 +200,15 @@ function parseWowauditResponse(json) {
 
     const entries = [];
 
+    // Collect the most-recent non-null updated_at for the chosen spec across all instances.
+    let updatedAt = null;
+    for (const instance of char.instances ?? []) {
+      const mythicDiff = instance.difficulties?.find((d) => d.difficulty === 'mythic');
+      if (!mythicDiff) continue;
+      const ts = mythicDiff.wishlist?.updated_at?.[chosenSpec];
+      if (ts && (!updatedAt || new Date(ts) > new Date(updatedAt))) updatedAt = ts;
+    }
+
     for (const instance of char.instances ?? []) {
       const mythicDiff = instance.difficulties?.find((d) => d.difficulty === 'mythic');
       if (!mythicDiff) continue;
@@ -246,6 +256,7 @@ function parseWowauditResponse(json) {
         raiderId:   raider.id,
         raiderName: raider.username,
         chosenSpec,
+        updatedAt,
         entries,
       });
     }
@@ -305,6 +316,10 @@ function applyAllWishlists() {
         raiderId: wl.raiderId,
         entry:    new WishlistEntry(entry.itemId, entry.score),
       });
+    }
+    // Override the wishlist timestamp with the wowaudit-side update time.
+    if (wl.updatedAt) {
+      emit('set-wishlist-updated-at', { raiderId: wl.raiderId, updatedAt: wl.updatedAt });
     }
   }
 }

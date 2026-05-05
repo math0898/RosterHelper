@@ -91,6 +91,20 @@ export class RosterStore {
   }
 
   /**
+   * Override the wishlist update timestamp for a specific raider and persist.
+   * Used when importing from wowaudit to record the wowaudit-side update time.
+   * @param {string} raiderId
+   * @param {string} ts  ISO 8601 timestamp string.
+   */
+  setWishlistUpdatedAt(raiderId, ts) {
+    const raider = this._raiders.find((r) => r.id === raiderId);
+    if (raider) {
+      raider.wishlistUpdatedAt = ts;
+      this._save();
+    }
+  }
+
+  /**
    * Remove a wishlist entry from a specific raider and persist.
    * @param {string} raiderId
    * @param {string} lootItemId
