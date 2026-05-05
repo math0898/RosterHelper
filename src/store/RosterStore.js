@@ -49,6 +49,19 @@ export class RosterStore {
   }
 
   /**
+   * Update the spec for a specific raider and persist.
+   * @param {string} raiderId
+   * @param {string} spec
+   */
+  updateSpec(raiderId, spec) {
+    const raider = this._raiders.find((r) => r.id === raiderId);
+    if (raider) {
+      raider.spec = spec;
+      this._save();
+    }
+  }
+
+  /**
    * Add or update a wishlist entry for a specific raider and persist.
    * If an entry for the same lootItemId already exists it is replaced.
    * @param {string} raiderId

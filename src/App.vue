@@ -32,6 +32,11 @@ function handleRemoveRaider(id) {
   raiders.value = rosterStore.getAll();
 }
 
+function handleUpdateRaiderSpec({ raiderId, spec }) {
+  rosterStore.updateSpec(raiderId, spec);
+  raiders.value = rosterStore.getAll();
+}
+
 // ─── Boss actions ─────────────────────────────────────────────────────────────
 
 function handleAddBoss(boss) {
@@ -147,6 +152,7 @@ function selectBossView(boss) {
         :raiders="raiders"
         :active-boss="activeBoss"
         @remove-raider="handleRemoveRaider"
+        @update-raider-spec="handleUpdateRaiderSpec"
       />
     </main>
 

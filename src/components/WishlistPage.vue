@@ -29,12 +29,13 @@ const emit = defineEmits([
 
 // ─── wowaudit import ──────────────────────────────────────────────────────────
 
-const importApiKey    = ref('');
-const importResult    = ref(null);    // condensed wishlist JSON string for display
-const importWarnings  = ref([]);      // structured warning objects
-const importError     = ref('');
-const importLoading   = ref(false);
-const importRawParsed = ref(null);    // raw parsed JSON stored for re-parsing after adds
+const importApiKey      = ref('');
+const importResult      = ref(null);    // condensed wishlist JSON string for display
+const importWarnings    = ref([]);      // structured warning objects
+const importError       = ref('');
+const importLoading     = ref(false);
+const importRawParsed   = ref(null);    // raw parsed JSON stored for re-parsing after adds
+const importWishlists   = ref([]);      // parsed wishlist entries ready to apply
 
 /** Per-warning class selection keyed by warning index (for ambiguous raiders). */
 const warningClassSelections = ref({});
@@ -256,6 +257,7 @@ function parseWowauditResponse(json) {
 function updateParsedResult(json) {
   const { wishlists, warnings } = parseWowauditResponse(json);
   importWarnings.value         = warnings;
+  importWishlists.value        = wishlists;
   importResult.value           = wishlists.length ? JSON.stringify(wishlists, null, 2) : null;
   warningClassSelections.value = {};
 }
@@ -291,6 +293,21 @@ async function fetchWowauditWishlists() {
 }
 
 // ─── Warning "Add" helpers ────────────────────────────────────────────────────
+
+/**
+ * Apply all resolved wishlist entries in one shot.
+ * Emits one add-to-wishlist event per entry across all raiders.
+ */
+function applyAllWishlists() {
+  for (const wl of importWishlists.value) {
+    for (const entry of wl.entries) {
+      emit('add-to-wishlist', {
+        raiderId: wl.raiderId,
+        entry:    new WishlistEntry(entry.itemId, entry.score),
+      });
+    }
+  }
+}
 
 function getWarningClass(index) {
   return warningClassSelections.value[index]
@@ -480,6 +497,15 @@ function handleRemove(lootItemId) {
           </span>
         </li>
       </ul>
+      <div v-if="importWishlists.length > 0" class="import-apply-row">
+        <span class="import-apply-info">
+          {{ importWishlists.length }} raider{{ importWishlists.length !== 1 ? 's' : '' }} ready
+          ({{ importWishlists.reduce((n, wl) => n + wl.entries.length, 0) }} item{{ importWishlists.reduce((n, wl) => n + wl.entries.length, 0) !== 1 ? 's' : '' }})
+        </span>
+        <button class="btn-apply-all" @click="applyAllWishlists">
+          ✓ Apply All Wishlists
+        </button>
+      </div>
       <pre v-if="importResult" class="import-result">{{ importResult }}</pre>
     </section>
 
@@ -955,6 +981,36 @@ function handleRemove(lootItemId) {
 .btn-warn-add:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+.import-apply-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 4px;
+}
+
+.import-apply-info {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.btn-apply-all {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 6px 18px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 0.2s;
+}
+
+.btn-apply-all:hover {
+  opacity: 0.85;
 }
 
 .import-result {

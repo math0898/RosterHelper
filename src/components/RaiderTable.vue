@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed } from 'vue';
-import { CLASS_COLORS, RANK_COLORS } from '../models/wowData.js';
+import { CLASS_COLORS, RANK_COLORS, WOW_CLASSES } from '../models/wowData.js';
 
 const props = defineProps({
   /** @type {import('../models/Raider.js').Raider[]} */
@@ -20,7 +20,7 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(['remove-raider']);
+const emit = defineEmits(['remove-raider', 'update-raider-spec']);
 
 // ─── Sorting ────────────────────────────────────────────────────────────────
 
@@ -144,6 +144,30 @@ function classColor(wowClass) {
 function rankColor(rank) {
   return RANK_COLORS[rank] ?? '#6b7280';
 }
+
+// ─── Inline spec editing ─────────────────────────────────────────────────────
+
+/** The raider id whose spec cell is currently being edited. */
+const editingSpecId = ref(null);
+
+function specsForRaider(raider) {
+  return WOW_CLASSES[raider.wowClass] ?? [];
+}
+
+function startEditSpec(raider) {
+  editingSpecId.value = raider.id;
+}
+
+function commitSpecChange(raider, newSpec) {
+  editingSpecId.value = null;
+  if (newSpec && newSpec !== raider.spec) {
+    emit('update-raider-spec', { raiderId: raider.id, spec: newSpec });
+  }
+}
+
+function cancelEditSpec() {
+  editingSpecId.value = null;
+}
 </script>
 
 <template>
@@ -189,7 +213,28 @@ function rankColor(rank) {
 
           <!-- Spec + Item Level — hidden in boss-view mode -->
           <template v-if="!activeBoss">
-            <td class="col-spec">{{ raider.spec }}</td>
+            <td class="col-spec">
+              <template v-if="editingSpecId === raider.id">
+                <select
+                  class="spec-select"
+                  :value="raider.spec"
+                  @change="commitSpecChange(raider, $event.target.value)"
+                  @blur="cancelEditSpec"
+                >
+                  <option
+                    v-for="s in specsForRaider(raider)"
+                    :key="s"
+                    :value="s"
+                  >{{ s }}</option>
+                </select>
+              </template>
+              <span
+                v-else
+                class="spec-display"
+                title="Click to change spec"
+                @click="startEditSpec(raider)"
+              >{{ raider.spec }}</span>
+            </td>
             <td class="col-ilvl">
               {{ raider.itemLevel > 0 ? raider.itemLevel : '—' }}
             </td>
@@ -415,5 +460,26 @@ tbody tr:hover td {
   color: var(--text-muted);
   font-style: italic;
   padding: 32px 16px;
+}
+
+/* ── Inline spec editor ── */
+.spec-display {
+  cursor: pointer;
+  border-bottom: 1px dashed var(--border);
+}
+
+.spec-display:hover {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.spec-select {
+  background: var(--surface-2);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  color: var(--text);
+  font-size: 0.85rem;
+  padding: 3px 6px;
+  outline: none;
 }
 </style>
