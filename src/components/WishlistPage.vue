@@ -38,6 +38,11 @@ const importLoading     = ref(false);
 const importRawParsed   = ref(null);    // raw parsed JSON stored for re-parsing after adds
 const importWishlists   = ref([]);      // parsed wishlist entries ready to apply
 
+/** Total number of wishlist item entries across all ready wishlists. */
+const importItemCount = computed(() =>
+  importWishlists.value.reduce((sum, wl) => sum + wl.entries.length, 0),
+);
+
 /** Per-warning class selection keyed by warning index (for ambiguous raiders). */
 const warningClassSelections = ref({});
 
@@ -545,7 +550,7 @@ function handleRemove(lootItemId) {
       <div v-if="importWishlists.length > 0" class="import-apply-row">
         <span class="import-apply-info">
           {{ importWishlists.length }} raider{{ importWishlists.length !== 1 ? 's' : '' }} ready
-          ({{ importWishlists.reduce((n, wl) => n + wl.entries.length, 0) }} item{{ importWishlists.reduce((n, wl) => n + wl.entries.length, 0) !== 1 ? 's' : '' }})
+          ({{ importItemCount }} item{{ importItemCount !== 1 ? 's' : '' }})
         </span>
         <button class="btn-apply-all" @click="applyAllWishlists">
           ✓ Apply All Wishlists

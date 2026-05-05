@@ -52,7 +52,7 @@ export const SPEC_ROLES = {
 
   // ── Healers ──────────────────────────────────────────────────────────────
   Restoration: 'Healer',
-  Preservation:'Healer',
+  Preservation: 'Healer',
   Mistweaver:  'Healer',
   Holy:        'Healer',
   Discipline:  'Healer',
