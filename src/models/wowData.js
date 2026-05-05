@@ -5,7 +5,7 @@
  */
 export const WOW_CLASSES = {
   'Death Knight': ['Blood', 'Frost', 'Unholy'],
-  'Demon Hunter': ['Havoc', 'Vengeance'],
+  'Demon Hunter': ['Havoc', 'Vengeance', 'Devour'],
   Druid: ['Balance', 'Feral', 'Guardian', 'Restoration'],
   Evoker: ['Augmentation', 'Devastation', 'Preservation'],
   Hunter: ['Beast Mastery', 'Marksmanship', 'Survival'],
