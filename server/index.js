@@ -5,20 +5,17 @@ const PORT = process.env.PORT ?? 3001;
 
 const WOWAUDIT_BASE = 'https://wowaudit.com';
 
-app.use(express.json());
-
 /**
- * POST /v1/wishlists
- * Body: { "api_key": "<key>" }
+ * GET /v1/wishlists?api_key=<key>
  *
  * Forwards the request to the wowaudit API on behalf of the browser
  * (bypasses CORS) and returns the raw JSON text.
- * Accepting the key in the POST body avoids exposing it in URL logs.
+ * The wowaudit API spec requires api_key as a GET query parameter.
  */
-app.post('/v1/wishlists', async (req, res) => {
-  const api_key = req.body?.api_key;
+app.get('/v1/wishlists', async (req, res) => {
+  const { api_key } = req.query;
   if (!api_key) {
-    return res.status(400).send('Missing required body field: api_key');
+    return res.status(400).send('Missing required query parameter: api_key');
   }
 
   const upstream = `${WOWAUDIT_BASE}/v1/wishlists?api_key=${encodeURIComponent(api_key)}`;

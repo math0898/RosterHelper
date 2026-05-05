@@ -34,12 +34,8 @@ async function fetchWowauditWishlists() {
   importError.value   = '';
   importResult.value  = null;
   try {
-    const url      = `/api/wowaudit/v1/wishlists`;
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ api_key: importApiKey.value.trim() }),
-    });
+    const url      = `/api/wowaudit/v1/wishlists?api_key=${encodeURIComponent(importApiKey.value.trim())}`;
+    const response = await fetch(url);
     const text     = await response.text();
     if (!response.ok) {
       importError.value = `Request failed (HTTP ${response.status}): ${text}`;
