@@ -1,0 +1,54 @@
+/* ============================================================
+   Global dark theme for RosterHelper
+   ============================================================ */
+
+:root {
+  /* Dark palette */
+  --bg:           #0f1117;
+  --surface:      #1a1d26;
+  --surface-2:    #21253a;
+  --border:       #2d3142;
+
+  /* Typography */
+  --text:         #c9cdd8;
+  --text-heading: #e8ecf4;
+  --text-muted:   #6b7280;
+
+  /* Accent */
+  --accent:       #4a90e2;
+
+  /* Semantic */
+  --danger:       #ef4444;
+
+  /* Base */
+  font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--text);
+  background-color: var(--bg);
+  color-scheme: dark;
+  -webkit-font-smoothing: antialiased;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background-color: var(--bg);
+}
+
+h1, h2, h3 {
+  color: var(--text-heading);
+  margin: 0;
+}
+
+input,
+select,
+button {
+  font-family: inherit;
+  font-size: inherit;
+}
