@@ -163,7 +163,7 @@ function parseWowauditResponse(json) {
   const warnKeys  = new Set();
 
   function addWarning(w) {
-    const key = `${w.type}:${w.name}:${w.bossName ?? ''}:${w.instance ?? ''}`;
+    const key = JSON.stringify([w.type, w.name, w.bossName ?? '', w.instance ?? '']);
     if (!warnKeys.has(key)) { warnKeys.add(key); warnings.push(w); }
   }
 
