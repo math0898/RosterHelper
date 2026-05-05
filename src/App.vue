@@ -168,6 +168,9 @@ function selectBossView(boss) {
         :bosses="bosses"
         @add-to-wishlist="handleAddToWishlist"
         @remove-from-wishlist="handleRemoveFromWishlist"
+        @add-raider="handleAddRaider"
+        @add-boss="handleAddBoss"
+        @add-loot="handleAddLoot"
       />
     </main>
   </div>

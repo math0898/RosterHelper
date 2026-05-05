@@ -1,6 +1,10 @@
 <script setup>
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, nextTick } from 'vue';
 import { WishlistEntry } from '../models/WishlistEntry.js';
+import { Raider } from '../models/Raider.js';
+import { Boss } from '../models/Boss.js';
+import { LootItem } from '../models/LootItem.js';
+import { WOW_CLASSES } from '../models/wowData.js';
 
 const props = defineProps({
   /** @type {import('../models/Raider.js').Raider[]} */
@@ -15,38 +19,157 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(['add-to-wishlist', 'remove-from-wishlist']);
+const emit = defineEmits([
+  'add-to-wishlist',
+  'remove-from-wishlist',
+  'add-raider',
+  'add-boss',
+  'add-loot',
+]);
 
 // ─── wowaudit import ──────────────────────────────────────────────────────────
 
 const importApiKey    = ref('');
-const importResult    = ref(null);   // condensed wishlist JSON string for display
-const importWarnings  = ref([]);     // warning strings for unrecognised entities
+const importResult    = ref(null);    // condensed wishlist JSON string for display
+const importWarnings  = ref([]);      // structured warning objects
 const importError     = ref('');
 const importLoading   = ref(false);
+const importRawParsed = ref(null);    // raw parsed JSON stored for re-parsing after adds
+
+/** Per-warning class selection keyed by warning index (for ambiguous raiders). */
+const warningClassSelections = ref({});
+
+// ─── Spec / class helpers ─────────────────────────────────────────────────────
+
+/** Reverse map: spec name → array of WoW classes that have that spec. */
+const SPEC_TO_CLASSES = Object.entries(WOW_CLASSES).reduce((acc, [cls, specs]) => {
+  for (const spec of specs) {
+    if (!acc[spec]) acc[spec] = [];
+    acc[spec].push(cls);
+  }
+  return acc;
+}, {});
 
 /**
- * Convert the raw wowaudit API response into a condensed object that only
- * contains mythic-difficulty entries for Raiders, Bosses, and LootItems that
- * are already present in the RosterHelper database.  Unrecognised entries are
- * collected as warning strings.
+ * Infer a WoW class from a list of spec names seen on a character.
+ * Returns the class name when unambiguous, null when it cannot be determined.
+ * @param {string[]} specNames
+ * @returns {string|null}
+ */
+function inferClassFromSpecs(specNames) {
+  let candidates = null;
+  for (const spec of specNames) {
+    const classesWithSpec = SPEC_TO_CLASSES[spec] ?? [];
+    if (classesWithSpec.length === 0) continue;
+    if (!candidates) {
+      candidates = new Set(classesWithSpec);
+    } else {
+      for (const c of [...candidates]) {
+        if (!classesWithSpec.includes(c)) candidates.delete(c);
+      }
+    }
+    if (candidates.size === 1) break;
+  }
+  return candidates?.size === 1 ? [...candidates][0] : null;
+}
+
+/**
+ * Count mythic-difficulty items per spec for a wowaudit character.
+ * @param {object} char
+ * @returns {Map<string, number>}
+ */
+function countItemsPerSpec(char) {
+  const counts = new Map();
+  for (const inst of char.instances ?? []) {
+    const mythicDiff = inst.difficulties?.find((d) => d.difficulty === 'mythic');
+    if (!mythicDiff) continue;
+    for (const encounter of mythicDiff.wishlist?.encounters ?? []) {
+      for (const item of encounter.items ?? []) {
+        for (const spec of Object.keys(item.score_by_spec ?? {})) {
+          counts.set(spec, (counts.get(spec) ?? 0) + 1);
+        }
+      }
+    }
+  }
+  return counts;
+}
+
+/**
+ * Choose which spec to use for a wowaudit character.
+ * Prefers the spec that matches rosterSpec (case-insensitive);
+ * falls back to the spec with the most mythic wishlist items.
+ * @param {object} char
+ * @param {string|null} rosterSpec
+ * @returns {string}
+ */
+function pickSpecForChar(char, rosterSpec) {
+  const specCounts = countItemsPerSpec(char);
+  if (specCounts.size === 0) return '';
+  if (rosterSpec) {
+    for (const spec of specCounts.keys()) {
+      if (spec.toLowerCase() === rosterSpec.toLowerCase()) return spec;
+    }
+  }
+  let bestSpec  = '';
+  let bestCount = 0;
+  for (const [spec, count] of specCounts) {
+    if (count > bestCount) { bestCount = count; bestSpec = spec; }
+  }
+  return bestSpec;
+}
+
+/**
+ * Normalise a wowaudit slot string to a RosterHelper EQUIPMENT_SLOTS name.
+ * @param {string} slot
+ * @returns {string}
+ */
+function mapSlot(slot) {
+  const SLOT_MAP = {
+    finger:        'Ring',
+    wrists:        'Wrist',
+    feet:          'Feet',
+    head:          'Head',
+    neck:          'Neck',
+    shoulder:      'Shoulder',
+    back:          'Back',
+    chest:         'Chest',
+    hands:         'Hands',
+    waist:         'Waist',
+    legs:          'Legs',
+    trinket:       'Trinket',
+    'main hand':   'Main Hand',
+    'off hand':    'Off Hand',
+    'two-hand':    'Two-Hand',
+    miscellaneous: 'Miscellaneous',
+  };
+  const key = slot?.toLowerCase() ?? '';
+  return SLOT_MAP[key] ?? (slot ? slot.charAt(0).toUpperCase() + slot.slice(1) : '');
+}
+
+// ─── Parse / update helpers ───────────────────────────────────────────────────
+
+/**
+ * Convert the raw wowaudit API response into a condensed object.
+ * Only mythic difficulty, only known Raiders/Bosses/LootItems.
+ * Uses score_by_spec[chosenSpec].score as the item weight.
+ * Unknown entities produce structured warning objects.
  *
  * @param {object} json  Parsed wowaudit /v1/wishlists response.
- * @returns {{ wishlists: object[], warnings: string[] }}
+ * @returns {{ wishlists: object[], warnings: object[] }}
  */
 function parseWowauditResponse(json) {
-  const warningSet = new Set();
-  const wishlists  = [];
+  const warnings  = [];
+  const wishlists = [];
+  const warnKeys  = new Set();
 
-  // Build lookup maps (name → object, case-insensitive)
-  const raiderByName = new Map(
-    props.raiders.map((r) => [r.username.toLowerCase(), r]),
-  );
-  const bossByName = new Map(
-    props.bosses.map((b) => [b.name.toLowerCase(), b]),
-  );
-  // lootItem name → LootItem, keyed per boss
-  const lootByBoss = new Map(
+  function addWarning(w) {
+    const key = `${w.type}:${w.name}:${w.bossName ?? ''}:${w.instance ?? ''}`;
+    if (!warnKeys.has(key)) { warnKeys.add(key); warnings.push(w); }
+  }
+
+  const raiderByName = new Map(props.raiders.map((r) => [r.username.toLowerCase(), r]));
+  const bossByName   = new Map(props.bosses.map((b) => [b.name.toLowerCase(), b]));
+  const lootByBoss   = new Map(
     props.bosses.map((b) => [
       b.name.toLowerCase(),
       new Map(b.loot.map((item) => [item.name.toLowerCase(), item])),
@@ -56,16 +179,27 @@ function parseWowauditResponse(json) {
   for (const char of json.characters ?? []) {
     const raider = raiderByName.get(char.name.toLowerCase());
     if (!raider) {
-      warningSet.add(`Character '${char.name}' is not in the RosterHelper roster`);
+      const specCounts    = countItemsPerSpec(char);
+      const availableSpecs = Array.from(specCounts.keys());
+      const chosenSpec    = pickSpecForChar(char, null);
+      addWarning({
+        type:           'raider',
+        name:           char.name,
+        realm:          char.realm ?? '',
+        availableSpecs,
+        chosenSpec,
+        inferredClass:  inferClassFromSpecs(availableSpecs),
+      });
       continue;
     }
+
+    const chosenSpec = pickSpecForChar(char, raider.spec);
+    if (!chosenSpec) continue;
 
     const entries = [];
 
     for (const instance of char.instances ?? []) {
-      const mythicDiff = (instance.difficulties ?? []).find(
-        (d) => d.difficulty === 'mythic',
-      );
+      const mythicDiff = instance.difficulties?.find((d) => d.difficulty === 'mythic');
       if (!mythicDiff) continue;
 
       for (const encounter of mythicDiff.wishlist?.encounters ?? []) {
@@ -73,31 +207,34 @@ function parseWowauditResponse(json) {
 
         const boss = bossByName.get(encounter.name.toLowerCase());
         if (!boss) {
-          warningSet.add(
-            `Boss '${encounter.name}' (from instance '${instance.name}') is not in RosterHelper`,
-          );
+          addWarning({ type: 'boss', name: encounter.name, instance: instance.name });
           continue;
         }
 
         const lootMap = lootByBoss.get(boss.name.toLowerCase());
 
         for (const item of encounter.items) {
+          const specScore = item.score_by_spec?.[chosenSpec];
+          if (!specScore) continue;
+
           const lootItem = lootMap?.get(item.name.toLowerCase());
           if (!lootItem) {
-            warningSet.add(
-              `Item '${item.name}' on boss '${encounter.name}' is not in RosterHelper`,
-            );
+            addWarning({
+              type:     'item',
+              name:     item.name,
+              bossName: encounter.name,
+              bossId:   boss.id,
+              slot:     mapSlot(item.slot),
+            });
             continue;
           }
 
-          const wish = item.wishes?.[0];
           entries.push({
-            bossId:      boss.id,
-            bossName:    boss.name,
-            itemId:      lootItem.id,
-            itemName:    lootItem.name,
-            score:       wish?.absolute    ?? 0,
-            percentage:  wish?.percentage  ?? 0,
+            bossId:   boss.id,
+            bossName: boss.name,
+            itemId:   lootItem.id,
+            itemName: lootItem.name,
+            score:    specScore.score,
           });
         }
       }
@@ -107,25 +244,34 @@ function parseWowauditResponse(json) {
       wishlists.push({
         raiderId:   raider.id,
         raiderName: raider.username,
+        chosenSpec,
         entries,
       });
     }
   }
 
-  return { wishlists, warnings: Array.from(warningSet) };
+  return { wishlists, warnings };
+}
+
+function updateParsedResult(json) {
+  const { wishlists, warnings } = parseWowauditResponse(json);
+  importWarnings.value         = warnings;
+  importResult.value           = wishlists.length ? JSON.stringify(wishlists, null, 2) : null;
+  warningClassSelections.value = {};
 }
 
 async function fetchWowauditWishlists() {
   if (!importApiKey.value.trim()) {
-    importError.value   = 'Please enter an API key.';
-    importResult.value  = null;
+    importError.value    = 'Please enter an API key.';
+    importResult.value   = null;
     importWarnings.value = [];
     return;
   }
-  importLoading.value  = true;
-  importError.value    = '';
-  importResult.value   = null;
-  importWarnings.value = [];
+  importLoading.value   = true;
+  importError.value     = '';
+  importResult.value    = null;
+  importWarnings.value  = [];
+  importRawParsed.value = null;
   try {
     const url      = `/api/wowaudit/v1/wishlists?api_key=${encodeURIComponent(importApiKey.value.trim())}`;
     const response = await fetch(url);
@@ -133,16 +279,49 @@ async function fetchWowauditWishlists() {
     if (!response.ok) {
       importError.value = `Request failed (HTTP ${response.status}): ${text}`;
     } else {
-      const parsed              = JSON.parse(text);
-      const { wishlists, warnings } = parseWowauditResponse(parsed);
-      importWarnings.value      = warnings;
-      importResult.value        = JSON.stringify(wishlists, null, 2);
+      const parsed          = JSON.parse(text);
+      importRawParsed.value = parsed;
+      updateParsedResult(parsed);
     }
   } catch (err) {
     importError.value = `Network error: ${err.message}`;
   } finally {
     importLoading.value = false;
   }
+}
+
+// ─── Warning "Add" helpers ────────────────────────────────────────────────────
+
+function getWarningClass(index) {
+  return warningClassSelections.value[index]
+    ?? importWarnings.value[index]?.inferredClass
+    ?? '';
+}
+
+function setWarningClass(index, cls) {
+  warningClassSelections.value = { ...warningClassSelections.value, [index]: cls };
+}
+
+async function addMissingRaider(warning, index) {
+  const cls    = getWarningClass(index);
+  const raider = new Raider(warning.name, cls, warning.chosenSpec, 'Member');
+  emit('add-raider', raider);
+  await nextTick();
+  if (importRawParsed.value) updateParsedResult(importRawParsed.value);
+}
+
+async function addMissingBoss(warning) {
+  const boss = new Boss(warning.name, warning.instance);
+  emit('add-boss', boss);
+  await nextTick();
+  if (importRawParsed.value) updateParsedResult(importRawParsed.value);
+}
+
+async function addMissingItem(warning) {
+  const lootItem = new LootItem(warning.name, warning.slot);
+  emit('add-loot', { bossId: warning.bossId, lootItem });
+  await nextTick();
+  if (importRawParsed.value) updateParsedResult(importRawParsed.value);
 }
 
 // ─── Raider selection ─────────────────────────────────────────────────────────
@@ -254,7 +433,51 @@ function handleRemove(lootItemId) {
       <p v-if="importError" class="import-error">{{ importError }}</p>
       <ul v-if="importWarnings.length" class="import-warnings">
         <li v-for="(w, i) in importWarnings" :key="i" class="import-warning">
-          ⚠ {{ w }}
+          <span class="warning-text">
+            <template v-if="w.type === 'raider'">
+              ⚠ Raider <strong>{{ w.name }}</strong>
+              <span class="warn-meta">({{ w.realm }}{{ w.chosenSpec ? ` · ${w.chosenSpec}` : '' }})</span>
+              — not in roster
+            </template>
+            <template v-else-if="w.type === 'boss'">
+              ⚠ Boss <strong>{{ w.name }}</strong>
+              <span class="warn-meta">({{ w.instance }})</span>
+              — not in RosterHelper
+            </template>
+            <template v-else-if="w.type === 'item'">
+              ⚠ Item <strong>{{ w.name }}</strong>
+              <span class="warn-meta">({{ w.slot }} · {{ w.bossName }})</span>
+              — not in RosterHelper
+            </template>
+          </span>
+          <span class="warning-actions">
+            <template v-if="w.type === 'raider'">
+              <select
+                v-if="!w.inferredClass"
+                class="warn-class-select"
+                :value="getWarningClass(i)"
+                @change="setWarningClass(i, $event.target.value)"
+              >
+                <option value="">Select class…</option>
+                <option v-for="cls in Object.keys(WOW_CLASSES)" :key="cls" :value="cls">
+                  {{ cls }}
+                </option>
+              </select>
+              <button
+                class="btn-warn-add"
+                :disabled="!getWarningClass(i)"
+                @click="addMissingRaider(w, i)"
+              >
+                + Add Raider
+              </button>
+            </template>
+            <template v-else-if="w.type === 'boss'">
+              <button class="btn-warn-add" @click="addMissingBoss(w)">+ Add Boss</button>
+            </template>
+            <template v-else-if="w.type === 'item'">
+              <button class="btn-warn-add" @click="addMissingItem(w)">+ Add Item</button>
+            </template>
+          </span>
         </li>
       </ul>
       <pre v-if="importResult" class="import-result">{{ importResult }}</pre>
@@ -667,17 +890,71 @@ function handleRemove(lootItemId) {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  max-height: 180px;
+  max-height: 240px;
   overflow-y: auto;
 }
 
 .import-warning {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
   font-size: 0.8rem;
   color: var(--warning, #c97b1a);
   background: color-mix(in srgb, var(--warning, #c97b1a) 8%, transparent);
   border: 1px solid color-mix(in srgb, var(--warning, #c97b1a) 30%, transparent);
   border-radius: 4px;
-  padding: 4px 10px;
+  padding: 5px 10px;
+}
+
+.warning-text {
+  flex: 1;
+  min-width: 0;
+  word-break: break-word;
+}
+
+.warn-meta {
+  font-size: 0.75rem;
+  opacity: 0.8;
+}
+
+.warning-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.warn-class-select {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  font-size: 0.75rem;
+  padding: 3px 6px;
+  outline: none;
+}
+
+.btn-warn-add {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 3px 10px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 0.2s;
+}
+
+.btn-warn-add:hover:not(:disabled) {
+  opacity: 0.85;
+}
+
+.btn-warn-add:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .import-result {
