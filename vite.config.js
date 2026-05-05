@@ -2,7 +2,7 @@ import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 
 const wowauditProxy = {
-  target: 'https://wowaudit.com',
+  target: 'http://localhost:3001',
   changeOrigin: true,
   rewrite: (path) => path.replace(/^\/api\/wowaudit/, ''),
 };
