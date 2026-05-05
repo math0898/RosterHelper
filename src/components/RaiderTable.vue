@@ -11,6 +11,7 @@ const props = defineProps({
   /**
    * When provided the table switches to boss-view mode, showing per-raider
    * data for this specific boss alongside the base raider columns.
+   * Spec and Item Level are hidden in boss-view mode.
    * @type {import('../models/Boss.js').Boss | null}
    */
   activeBoss: {
@@ -27,7 +28,7 @@ const sortKey = ref('username');
 const sortDir = ref('asc'); // 'asc' | 'desc'
 
 function toggleSort(key) {
-  if (key === '_actions') return;
+  if (key === '_actions' || key === '_wishlist') return;
   if (sortKey.value === key) {
     sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc';
   } else {
@@ -43,31 +44,65 @@ function sortIndicator(key) {
 
 // ─── Column definitions ──────────────────────────────────────────────────────
 
-const BASE_COLUMNS = [
+const BASE_COLUMNS_FULL = [
   { key: 'username',  label: 'Username',   sortable: true },
   { key: 'wowClass',  label: 'Class',      sortable: true },
   { key: 'spec',      label: 'Spec',       sortable: true },
   { key: 'itemLevel', label: 'Item Level', sortable: true },
 ];
 
+const BASE_COLUMNS_BOSS = [
+  { key: 'username', label: 'Username', sortable: true },
+  { key: 'wowClass', label: 'Class',    sortable: true },
+];
+
 const BOSS_COLUMNS = [
-  { key: '_vault', label: 'Vault', sortable: true },
-  { key: '_kills', label: 'Kills', sortable: true },
+  { key: '_vault',    label: 'Vault',    sortable: true  },
+  { key: '_kills',    label: 'Kills',    sortable: true  },
+  { key: '_wishlist', label: 'Wishlist', sortable: false },
 ];
 
 const ACTION_COLUMN = { key: '_actions', label: '', sortable: false };
 
 const columns = computed(() => {
   if (props.activeBoss) {
-    return [...BASE_COLUMNS, ...BOSS_COLUMNS, ACTION_COLUMN];
+    return [...BASE_COLUMNS_BOSS, ...BOSS_COLUMNS, ACTION_COLUMN];
   }
-  return [...BASE_COLUMNS, ACTION_COLUMN];
+  return [...BASE_COLUMNS_FULL, ACTION_COLUMN];
 });
 
 // ─── Boss-view helpers ───────────────────────────────────────────────────────
 
 function bossEntryFor(raider) {
   return raider.bossData.find((e) => e.bossId === props.activeBoss?.id) ?? null;
+}
+
+/**
+ * Returns the raider's wishlist items that are in the active boss's loot pool.
+ * @param {import('../models/Raider.js').Raider} raider
+ * @returns {{ item: import('../models/LootItem.js').LootItem, weight: number }[]}
+ */
+function wishlistItemsFor(raider) {
+  if (!props.activeBoss) return [];
+  const wishlistMap = new Map((raider.wishlist ?? []).map((w) => [w.lootItemId, w.weight]));
+  return props.activeBoss.loot
+    .filter((item) => wishlistMap.has(item.id))
+    .map((item) => ({ item, weight: wishlistMap.get(item.id) }));
+}
+
+/**
+ * Format a weight value compactly.
+ * Values >= 1 000 are shown as "Xk" (e.g. 50 000 → "50k").
+ * Values < 1 000 are shown as plain numbers.
+ * @param {number} weight
+ * @returns {string}
+ */
+function formatWeight(weight) {
+  if (weight >= 1000) {
+    const k = weight / 1000;
+    return (Number.isInteger(k) ? k : k.toFixed(1)) + 'k';
+  }
+  return String(weight);
 }
 
 // ─── Sorted raiders ──────────────────────────────────────────────────────────
@@ -152,11 +187,13 @@ function rankColor(rank) {
             {{ raider.wowClass }}
           </td>
 
-          <td class="col-spec">{{ raider.spec }}</td>
-
-          <td class="col-ilvl">
-            {{ raider.itemLevel > 0 ? raider.itemLevel : '—' }}
-          </td>
+          <!-- Spec + Item Level — hidden in boss-view mode -->
+          <template v-if="!activeBoss">
+            <td class="col-spec">{{ raider.spec }}</td>
+            <td class="col-ilvl">
+              {{ raider.itemLevel > 0 ? raider.itemLevel : '—' }}
+            </td>
+          </template>
 
           <!-- Boss-specific columns (only rendered in boss-view mode) -->
           <template v-if="activeBoss">
@@ -169,6 +206,19 @@ function rankColor(rank) {
             </td>
             <td class="col-kills">
               {{ bossEntryFor(raider)?.kills ?? 0 }}
+            </td>
+            <td class="col-wishlist">
+              <template v-if="wishlistItemsFor(raider).length > 0">
+                <span
+                  v-for="wi in wishlistItemsFor(raider)"
+                  :key="wi.item.id"
+                  class="wishlist-tag"
+                  :title="wi.item.name"
+                >
+                  {{ wi.item.slot }}: {{ formatWeight(wi.weight) }}
+                </span>
+              </template>
+              <span v-else class="no-wishlist">—</span>
             </td>
           </template>
 
@@ -298,12 +348,16 @@ tbody tr:hover td {
   text-align: center;
 }
 
+.col-wishlist {
+  min-width: 140px;
+}
+
 .col-actions {
   text-align: right;
   width: 40px;
 }
 
-/* ── Attended pills ── */
+/* ── Vault pills ── */
 .pill {
   display: inline-block;
   font-size: 0.75rem;
@@ -320,6 +374,24 @@ tbody tr:hover td {
 .pill--no {
   background: rgba(239, 68, 68, 0.12);
   color: #f87171;
+}
+
+/* ── Wishlist tags ── */
+.wishlist-tag {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: color-mix(in srgb, var(--accent) 15%, var(--surface-2));
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+  border-radius: 4px;
+  padding: 2px 8px;
+  margin: 2px 4px 2px 0;
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+.no-wishlist {
+  color: var(--text-muted);
 }
 
 .btn-remove {

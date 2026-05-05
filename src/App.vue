@@ -3,6 +3,7 @@ import { ref } from 'vue';
 import AddRaiderForm from './components/AddRaiderForm.vue';
 import RaiderTable from './components/RaiderTable.vue';
 import BossesPage from './components/BossesPage.vue';
+import WishlistPage from './components/WishlistPage.vue';
 import { RosterStore } from './store/RosterStore.js';
 import { BossStore } from './store/BossStore.js';
 
@@ -16,7 +17,7 @@ const bosses  = ref(bossStore.getAll());
 
 // ─── Navigation ──────────────────────────────────────────────────────────────
 
-/** @type {'roster' | 'bosses'} */
+/** @type {'roster' | 'bosses' | 'wishlist'} */
 const currentPage = ref('roster');
 
 // ─── Roster actions ──────────────────────────────────────────────────────────
@@ -57,6 +58,18 @@ function handleRemoveLoot({ bossId, lootItemId }) {
   bosses.value = bossStore.getAll();
 }
 
+// ─── Wishlist actions ─────────────────────────────────────────────────────────
+
+function handleAddToWishlist({ raiderId, entry }) {
+  rosterStore.addToWishlist(raiderId, entry);
+  raiders.value = rosterStore.getAll();
+}
+
+function handleRemoveFromWishlist({ raiderId, lootItemId }) {
+  rosterStore.removeFromWishlist(raiderId, lootItemId);
+  raiders.value = rosterStore.getAll();
+}
+
 // ─── Boss-view mode ───────────────────────────────────────────────────────────
 
 /** The boss currently selected for boss-view mode in the roster table. Null = normal mode. */
@@ -89,6 +102,13 @@ function selectBossView(boss) {
             @click="currentPage = 'bosses'"
           >
             Bosses
+          </button>
+          <button
+            class="nav-btn"
+            :class="{ active: currentPage === 'wishlist' }"
+            @click="currentPage = 'wishlist'"
+          >
+            Wishlist
           </button>
         </nav>
 
@@ -138,6 +158,16 @@ function selectBossView(boss) {
         @remove-boss="handleRemoveBoss"
         @add-loot="handleAddLoot"
         @remove-loot="handleRemoveLoot"
+      />
+    </main>
+
+    <!-- Wishlist page -->
+    <main v-else-if="currentPage === 'wishlist'" class="app-main">
+      <WishlistPage
+        :raiders="raiders"
+        :bosses="bosses"
+        @add-to-wishlist="handleAddToWishlist"
+        @remove-from-wishlist="handleRemoveFromWishlist"
       />
     </main>
   </div>

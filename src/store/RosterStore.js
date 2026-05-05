@@ -48,6 +48,34 @@ export class RosterStore {
     }
   }
 
+  /**
+   * Add or update a wishlist entry for a specific raider and persist.
+   * If an entry for the same lootItemId already exists it is replaced.
+   * @param {string} raiderId
+   * @param {import('../models/WishlistEntry.js').WishlistEntry} entry
+   */
+  addToWishlist(raiderId, entry) {
+    const raider = this._raiders.find((r) => r.id === raiderId);
+    if (raider) {
+      raider.wishlist = raider.wishlist.filter((w) => w.lootItemId !== entry.lootItemId);
+      raider.wishlist.push(entry);
+      this._save();
+    }
+  }
+
+  /**
+   * Remove a wishlist entry from a specific raider and persist.
+   * @param {string} raiderId
+   * @param {string} lootItemId
+   */
+  removeFromWishlist(raiderId, lootItemId) {
+    const raider = this._raiders.find((r) => r.id === raiderId);
+    if (raider) {
+      raider.wishlist = raider.wishlist.filter((w) => w.lootItemId !== lootItemId);
+      this._save();
+    }
+  }
+
   /** Persist the current roster to localStorage. */
   _save() {
     try {
