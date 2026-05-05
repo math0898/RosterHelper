@@ -1,7 +1,7 @@
 /**
  * Represents a single raider in the roster.
  *
- * Fields collected at creation: username, wowClass, spec.
+ * Fields collected at creation: username, wowClass, spec, rank.
  * Fields stored but set later:  itemLevel, bossData.
  */
 export class Raider {
@@ -9,14 +9,16 @@ export class Raider {
    * @param {string} username  - The player's in-game name.
    * @param {string} wowClass  - The WoW class (e.g. "Paladin").
    * @param {string} spec      - The specialisation (e.g. "Holy").
-   * @param {number} [itemLevel=0]      - Average item level.
-   * @param {BossEntry[]} [bossData=[]] - Per-boss statistics array.
+   * @param {string} [rank='Member']        - Raid rank (Guild Master/Officer/Member/Bench/Trial).
+   * @param {number} [itemLevel=0]          - Average item level.
+   * @param {BossEntry[]} [bossData=[]]     - Per-boss statistics array.
    */
-  constructor(username, wowClass, spec, itemLevel = 0, bossData = []) {
+  constructor(username, wowClass, spec, rank = 'Member', itemLevel = 0, bossData = []) {
     this.id = crypto.randomUUID();
     this.username = username;
     this.wowClass = wowClass;
     this.spec = spec;
+    this.rank = rank;
     this.itemLevel = itemLevel;
     this.bossData = bossData;
   }
@@ -28,6 +30,7 @@ export class Raider {
       username: this.username,
       wowClass: this.wowClass,
       spec: this.spec,
+      rank: this.rank,
       itemLevel: this.itemLevel,
       bossData: this.bossData,
     };
@@ -43,6 +46,7 @@ export class Raider {
       obj.username,
       obj.wowClass,
       obj.spec,
+      obj.rank ?? 'Member',
       obj.itemLevel ?? 0,
       obj.bossData ?? [],
     );
@@ -53,7 +57,9 @@ export class Raider {
 
 /**
  * @typedef {object} BossEntry
- * @property {string} bossName  - Name of the boss.
+ * @property {string} bossId    - The id of the Boss this entry refers to.
+ * @property {string} bossName  - Name of the boss (denormalised for display).
  * @property {number} kills     - Number of kills.
  * @property {boolean} attended - Whether the raider attended this encounter.
  */
+

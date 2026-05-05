@@ -35,3 +35,22 @@ export const CLASS_COLORS = {
   Warlock: '#8788EE',
   Warrior: '#C69B3A',
 };
+
+/**
+ * Ordered list of raid ranks, from highest to lowest.
+ * Used for both the form selector and the rank badge in the table.
+ */
+export const RAID_RANKS = ['Guild Master', 'Officer', 'Member', 'Bench', 'Trial'];
+
+/**
+ * Accent colour for each rank badge.
+ * Intentionally subtle — these are meant as small visual indicators.
+ */
+export const RANK_COLORS = {
+  'Guild Master': '#FFD700',
+  Officer:        '#C0C0C0',
+  Member:         '#4a90e2',
+  Bench:          '#FF8C00',
+  Trial:          '#6b7280',
+};
+

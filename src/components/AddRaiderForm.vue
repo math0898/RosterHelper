@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed } from 'vue';
-import { WOW_CLASSES, CLASS_COLORS } from '../models/wowData.js';
+import { WOW_CLASSES, CLASS_COLORS, RAID_RANKS } from '../models/wowData.js';
 import { Raider } from '../models/Raider.js';
 
 const emit = defineEmits(['add-raider']);
@@ -8,6 +8,7 @@ const emit = defineEmits(['add-raider']);
 const username = ref('');
 const wowClass = ref('');
 const spec = ref('');
+const rank = ref('Member');
 
 const availableSpecs = computed(() =>
   wowClass.value ? WOW_CLASSES[wowClass.value] : [],
@@ -23,11 +24,12 @@ const isValid = computed(
 
 function handleSubmit() {
   if (!isValid.value) return;
-  const raider = new Raider(username.value.trim(), wowClass.value, spec.value);
+  const raider = new Raider(username.value.trim(), wowClass.value, spec.value, rank.value);
   emit('add-raider', raider);
   username.value = '';
   wowClass.value = '';
   spec.value = '';
+  rank.value = 'Member';
 }
 </script>
 
@@ -74,6 +76,13 @@ function handleSubmit() {
           <option v-for="s in availableSpecs" :key="s" :value="s">
             {{ s }}
           </option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="rank">Rank</label>
+        <select id="rank" v-model="rank">
+          <option v-for="r in RAID_RANKS" :key="r" :value="r">{{ r }}</option>
         </select>
       </div>
     </div>
