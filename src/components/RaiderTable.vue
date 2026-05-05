@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed } from 'vue';
-import { CLASS_COLORS, RANK_COLORS, WOW_CLASSES } from '../models/wowData.js';
+import { CLASS_COLORS, RANK_COLORS, WOW_CLASSES, SPEC_ROLES } from '../models/wowData.js';
 
 const props = defineProps({
   /** @type {import('../models/Raider.js').Raider[]} */
@@ -145,6 +145,17 @@ function rankColor(rank) {
   return RANK_COLORS[rank] ?? '#6b7280';
 }
 
+/**
+ * Derive Tank / Healer / DPS role from a raider's spec.
+ * Returns null when the spec is unknown or empty.
+ * @param {import('../models/Raider.js').Raider} raider
+ * @returns {'Tank' | 'Healer' | 'DPS' | null}
+ */
+function roleForRaider(raider) {
+  if (!raider.spec) return null;
+  return SPEC_ROLES[raider.spec] ?? 'DPS';
+}
+
 // ─── Inline spec editing ─────────────────────────────────────────────────────
 
 /** The raider id whose spec cell is currently being edited. */
@@ -209,6 +220,11 @@ function cancelEditSpec() {
 
           <td class="col-class" :style="{ color: classColor(raider.wowClass) }">
             {{ raider.wowClass }}
+            <span
+              v-if="roleForRaider(raider)"
+              class="role-badge"
+              :class="`role-badge--${roleForRaider(raider).toLowerCase()}`"
+            >{{ roleForRaider(raider)[0] }}</span>
           </td>
 
           <!-- Spec + Item Level — hidden in boss-view mode -->
@@ -221,6 +237,7 @@ function cancelEditSpec() {
                   @change="commitSpecChange(raider, $event.target.value)"
                   @blur="cancelEditSpec"
                 >
+                  <option v-if="!raider.spec" value="" disabled selected>— Select spec —</option>
                   <option
                     v-for="s in specsForRaider(raider)"
                     :key="s"
@@ -231,9 +248,10 @@ function cancelEditSpec() {
               <span
                 v-else
                 class="spec-display"
+                :class="{ 'spec-display--missing': !raider.spec }"
                 title="Click to change spec"
                 @click="startEditSpec(raider)"
-              >{{ raider.spec }}</span>
+              >{{ raider.spec || 'No spec' }}</span>
             </td>
             <td class="col-ilvl">
               {{ raider.itemLevel > 0 ? raider.itemLevel : '—' }}
@@ -473,6 +491,12 @@ tbody tr:hover td {
   border-bottom-color: var(--accent);
 }
 
+.spec-display--missing {
+  color: var(--danger, #f87171);
+  border-bottom-color: var(--danger, #f87171);
+  font-style: italic;
+}
+
 .spec-select {
   background: var(--surface-2);
   border: 1px solid var(--accent);
@@ -481,5 +505,36 @@ tbody tr:hover td {
   font-size: 0.85rem;
   padding: 3px 6px;
   outline: none;
+}
+
+/* ── Role badge ── */
+.role-badge {
+  display: inline-block;
+  font-size: 0.55rem;
+  font-weight: 700;
+  border-radius: 3px;
+  padding: 1px 4px;
+  margin-left: 5px;
+  vertical-align: middle;
+  line-height: 1.5;
+  opacity: 0.85;
+}
+
+.role-badge--tank {
+  background: rgba(59, 130, 246, 0.18);
+  color: #60a5fa;
+  border: 1px solid rgba(59, 130, 246, 0.4);
+}
+
+.role-badge--healer {
+  background: rgba(34, 197, 94, 0.15);
+  color: #4ade80;
+  border: 1px solid rgba(34, 197, 94, 0.35);
+}
+
+.role-badge--dps {
+  background: rgba(239, 68, 68, 0.13);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.3);
 }
 </style>

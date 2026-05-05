@@ -37,6 +37,28 @@ export const CLASS_COLORS = {
 };
 
 /**
+ * Role for each spec.  Specs not listed here default to 'DPS'.
+ * Note: some spec names are shared across classes (e.g. "Holy", "Protection",
+ * "Restoration") — they always map to the same role so one entry covers both.
+ * @type {Record<string, 'Tank' | 'Healer' | 'DPS'>}
+ */
+export const SPEC_ROLES = {
+  // ── Tanks ────────────────────────────────────────────────────────────────
+  Blood:       'Tank',
+  Vengeance:   'Tank',
+  Guardian:    'Tank',
+  Brewmaster:  'Tank',
+  Protection:  'Tank',
+
+  // ── Healers ──────────────────────────────────────────────────────────────
+  Restoration: 'Healer',
+  Preservation:'Healer',
+  Mistweaver:  'Healer',
+  Holy:        'Healer',
+  Discipline:  'Healer',
+};
+
+/**
  * Ordered list of raid ranks, from highest to lowest.
  * Used for both the form selector and the rank badge in the table.
  */
