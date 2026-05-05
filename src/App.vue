@@ -45,6 +45,18 @@ function handleRemoveBoss(id) {
   if (activeBoss.value?.id === id) activeBoss.value = null;
 }
 
+// ─── Loot actions ─────────────────────────────────────────────────────────────
+
+function handleAddLoot({ bossId, lootItem }) {
+  bossStore.addLootToBoss(bossId, lootItem);
+  bosses.value = bossStore.getAll();
+}
+
+function handleRemoveLoot({ bossId, lootItemId }) {
+  bossStore.removeLootFromBoss(bossId, lootItemId);
+  bosses.value = bossStore.getAll();
+}
+
 // ─── Boss-view mode ───────────────────────────────────────────────────────────
 
 /** The boss currently selected for boss-view mode in the roster table. Null = normal mode. */
@@ -124,6 +136,8 @@ function selectBossView(boss) {
         :bosses="bosses"
         @add-boss="handleAddBoss"
         @remove-boss="handleRemoveBoss"
+        @add-loot="handleAddLoot"
+        @remove-loot="handleRemoveLoot"
       />
     </main>
   </div>

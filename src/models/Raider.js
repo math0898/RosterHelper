@@ -60,6 +60,6 @@ export class Raider {
  * @property {string} bossId    - The id of the Boss this entry refers to.
  * @property {string} bossName  - Name of the boss (denormalised for display).
  * @property {number} kills     - Number of kills.
- * @property {boolean} attended - Whether the raider attended this encounter.
+ * @property {boolean} vault    - Whether this boss is unlocked for the raider's Great Vault.
  */
 

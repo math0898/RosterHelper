@@ -48,6 +48,32 @@ export class BossStore {
     }
   }
 
+  /**
+   * Add a LootItem to a specific boss and persist.
+   * @param {string} bossId
+   * @param {import('../models/LootItem.js').LootItem} lootItem
+   */
+  addLootToBoss(bossId, lootItem) {
+    const boss = this._bosses.find((b) => b.id === bossId);
+    if (boss) {
+      boss.loot.push(lootItem);
+      this._save();
+    }
+  }
+
+  /**
+   * Remove a LootItem from a specific boss and persist.
+   * @param {string} bossId
+   * @param {string} lootItemId
+   */
+  removeLootFromBoss(bossId, lootItemId) {
+    const boss = this._bosses.find((b) => b.id === bossId);
+    if (boss) {
+      boss.loot = boss.loot.filter((item) => item.id !== lootItemId);
+      this._save();
+    }
+  }
+
   /** Persist the current boss list to localStorage. */
   _save() {
     try {

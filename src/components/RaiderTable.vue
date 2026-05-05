@@ -51,8 +51,8 @@ const BASE_COLUMNS = [
 ];
 
 const BOSS_COLUMNS = [
-  { key: '_attended', label: 'Attended', sortable: true },
-  { key: '_kills',    label: 'Kills',    sortable: true },
+  { key: '_vault', label: 'Vault', sortable: true },
+  { key: '_kills', label: 'Kills', sortable: true },
 ];
 
 const ACTION_COLUMN = { key: '_actions', label: '', sortable: false };
@@ -80,9 +80,9 @@ const sortedRaiders = computed(() => {
   list.sort((a, b) => {
     let va, vb;
 
-    if (key === '_attended') {
-      va = bossEntryFor(a)?.attended ? 1 : 0;
-      vb = bossEntryFor(b)?.attended ? 1 : 0;
+    if (key === '_vault') {
+      va = bossEntryFor(a)?.vault ? 1 : 0;
+      vb = bossEntryFor(b)?.vault ? 1 : 0;
     } else if (key === '_kills') {
       va = bossEntryFor(a)?.kills ?? 0;
       vb = bossEntryFor(b)?.kills ?? 0;
@@ -160,11 +160,11 @@ function rankColor(rank) {
 
           <!-- Boss-specific columns (only rendered in boss-view mode) -->
           <template v-if="activeBoss">
-            <td class="col-attended">
+            <td class="col-vault">
               <span
-                :class="bossEntryFor(raider)?.attended ? 'pill pill--yes' : 'pill pill--no'"
+                :class="bossEntryFor(raider)?.vault ? 'pill pill--yes' : 'pill pill--no'"
               >
-                {{ bossEntryFor(raider)?.attended ? 'Yes' : 'No' }}
+                {{ bossEntryFor(raider)?.vault ? 'Yes' : 'No' }}
               </span>
             </td>
             <td class="col-kills">
@@ -294,7 +294,7 @@ tbody tr:hover td {
   color: var(--text-muted);
 }
 
-.col-attended {
+.col-vault {
   text-align: center;
 }
 
