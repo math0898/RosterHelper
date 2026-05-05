@@ -17,6 +17,38 @@ const props = defineProps({
 
 const emit = defineEmits(['add-to-wishlist', 'remove-from-wishlist']);
 
+// ─── wowaudit import ──────────────────────────────────────────────────────────
+
+const importApiKey    = ref('');
+const importResult    = ref(null);   // raw JSON string on success
+const importError     = ref('');
+const importLoading   = ref(false);
+
+async function fetchWowauditWishlists() {
+  if (!importApiKey.value.trim()) {
+    importError.value  = 'Please enter an API key.';
+    importResult.value = null;
+    return;
+  }
+  importLoading.value = true;
+  importError.value   = '';
+  importResult.value  = null;
+  try {
+    const url      = `https://wowaudit.com/v1/wishlists?api_key=${encodeURIComponent(importApiKey.value.trim())}`;
+    const response = await fetch(url);
+    const text     = await response.text();
+    if (!response.ok) {
+      importError.value = `Request failed (HTTP ${response.status}): ${text}`;
+    } else {
+      importResult.value = text;
+    }
+  } catch (err) {
+    importError.value = `Network error: ${err.message}`;
+  } finally {
+    importLoading.value = false;
+  }
+}
+
 // ─── Raider selection ─────────────────────────────────────────────────────────
 
 const selectedRaiderId = ref('');
@@ -101,6 +133,31 @@ function handleRemove(lootItemId) {
 <template>
   <div class="wishlist-page">
     <h2 class="page-title">Wishlist Editor</h2>
+
+    <!-- wowaudit import -->
+    <section class="import-section">
+      <h3 class="import-heading">Import from wowaudit</h3>
+      <div class="import-controls">
+        <label for="api-key-input" class="import-label">API Key</label>
+        <input
+          id="api-key-input"
+          v-model="importApiKey"
+          type="password"
+          class="import-input"
+          placeholder="Enter your wowaudit API key"
+          :disabled="importLoading"
+        />
+        <button
+          class="btn-import"
+          :disabled="importLoading"
+          @click="fetchWowauditWishlists"
+        >
+          {{ importLoading ? 'Loading…' : 'Fetch Wishlists' }}
+        </button>
+      </div>
+      <p v-if="importError" class="import-error">{{ importError }}</p>
+      <pre v-if="importResult" class="import-result">{{ importResult }}</pre>
+    </section>
 
     <!-- Raider selector -->
     <div class="raider-selector">
@@ -420,5 +477,99 @@ function handleRemove(lootItemId) {
 .btn-remove:hover {
   color: var(--danger);
   border-color: var(--danger);
+}
+
+/* ── wowaudit import ── */
+.import-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.import-heading {
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.import-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.import-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+.import-input {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text);
+  font-size: 0.9rem;
+  padding: 7px 12px;
+  outline: none;
+  min-width: 260px;
+  transition: border-color 0.2s;
+}
+
+.import-input:focus {
+  border-color: var(--accent);
+}
+
+.btn-import {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 7px 16px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  white-space: nowrap;
+}
+
+.btn-import:hover:not(:disabled) {
+  opacity: 0.85;
+}
+
+.btn-import:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.import-error {
+  color: var(--danger, #e05252);
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+.import-result {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text);
+  font-size: 0.78rem;
+  padding: 12px;
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 300px;
+  overflow-y: auto;
 }
 </style>
