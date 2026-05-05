@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed } from 'vue';
-import { CLASS_COLORS, RANK_COLORS, WOW_CLASSES, SPEC_ROLES } from '../models/wowData.js';
+import { CLASS_COLORS, RANK_COLORS, WOW_CLASSES, SPEC_ROLES, RAID_RANKS } from '../models/wowData.js';
 
 const props = defineProps({
   /** @type {import('../models/Raider.js').Raider[]} */
@@ -20,7 +20,7 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(['remove-raider', 'update-raider-spec']);
+const emit = defineEmits(['remove-raider', 'update-raider-spec', 'update-raider-rank']);
 
 // ─── Sorting ────────────────────────────────────────────────────────────────
 
@@ -179,6 +179,26 @@ function commitSpecChange(raider, newSpec) {
 function cancelEditSpec() {
   editingSpecId.value = null;
 }
+
+// ─── Inline rank editing ──────────────────────────────────────────────────────
+
+/** The raider id whose rank badge is currently being edited. */
+const editingRankId = ref(null);
+
+function startEditRank(raider) {
+  editingRankId.value = raider.id;
+}
+
+function commitRankChange(raider, newRank) {
+  editingRankId.value = null;
+  if (newRank && newRank !== raider.rank) {
+    emit('update-raider-rank', { raiderId: raider.id, rank: newRank });
+  }
+}
+
+function cancelEditRank() {
+  editingRankId.value = null;
+}
 </script>
 
 <template>
@@ -210,10 +230,22 @@ function cancelEditSpec() {
         <tr v-for="raider in sortedRaiders" :key="raider.id">
           <!-- Username + rank badge -->
           <td class="col-username">
+            <template v-if="editingRankId === raider.id">
+              <select
+                class="rank-select"
+                :value="raider.rank"
+                @change="commitRankChange(raider, $event.target.value)"
+                @blur="cancelEditRank"
+              >
+                <option v-for="r in RAID_RANKS" :key="r" :value="r">{{ r }}</option>
+              </select>
+            </template>
             <span
+              v-else
               class="rank-badge"
               :style="{ color: rankColor(raider.rank), borderColor: rankColor(raider.rank) }"
-              :title="raider.rank"
+              :title="`${raider.rank} — click to change`"
+              @click="startEditRank(raider)"
             >{{ raider.rank.slice(0, 2).toUpperCase() }}</span>
             {{ raider.username }}
           </td>
@@ -390,6 +422,24 @@ tbody tr:hover td {
   vertical-align: middle;
   opacity: 0.9;
   line-height: 1.4;
+  cursor: pointer;
+}
+
+.rank-badge:hover {
+  opacity: 1;
+  background: color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.rank-select {
+  background: var(--surface-2);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  color: var(--text);
+  font-size: 0.75rem;
+  padding: 2px 5px;
+  outline: none;
+  margin-right: 6px;
+  vertical-align: middle;
 }
 
 .col-username {

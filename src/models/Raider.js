@@ -15,29 +15,32 @@ export class Raider {
    * @param {number} [itemLevel=0]                - Average item level.
    * @param {BossEntry[]} [bossData=[]]           - Per-boss statistics array.
    * @param {WishlistEntry[]} [wishlist=[]]       - Loot items the raider wants, with power-gain weights.
+   * @param {string|null} [wishlistUpdatedAt=null] - ISO timestamp of the last wishlist modification.
    */
-  constructor(username, wowClass, spec, rank = 'Member', itemLevel = 0, bossData = [], wishlist = []) {
-    this.id        = crypto.randomUUID();
-    this.username  = username;
-    this.wowClass  = wowClass;
-    this.spec      = spec;
-    this.rank      = rank;
-    this.itemLevel = itemLevel;
-    this.bossData  = bossData;
-    this.wishlist  = wishlist;
+  constructor(username, wowClass, spec, rank = 'Member', itemLevel = 0, bossData = [], wishlist = [], wishlistUpdatedAt = null) {
+    this.id                 = crypto.randomUUID();
+    this.username           = username;
+    this.wowClass           = wowClass;
+    this.spec               = spec;
+    this.rank               = rank;
+    this.itemLevel          = itemLevel;
+    this.bossData           = bossData;
+    this.wishlist           = wishlist;
+    this.wishlistUpdatedAt  = wishlistUpdatedAt;
   }
 
   /** Serialise to a plain object suitable for JSON.stringify. */
   toJSON() {
     return {
-      id:        this.id,
-      username:  this.username,
-      wowClass:  this.wowClass,
-      spec:      this.spec,
-      rank:      this.rank,
-      itemLevel: this.itemLevel,
-      bossData:  this.bossData,
-      wishlist:  this.wishlist.map((e) => e.toJSON()),
+      id:                this.id,
+      username:          this.username,
+      wowClass:          this.wowClass,
+      spec:              this.spec,
+      rank:              this.rank,
+      itemLevel:         this.itemLevel,
+      bossData:          this.bossData,
+      wishlist:          this.wishlist.map((e) => e.toJSON()),
+      wishlistUpdatedAt: this.wishlistUpdatedAt,
     };
   }
 
@@ -52,10 +55,11 @@ export class Raider {
       obj.username,
       obj.wowClass,
       obj.spec,
-      obj.rank      ?? 'Member',
-      obj.itemLevel ?? 0,
-      obj.bossData  ?? [],
+      obj.rank              ?? 'Member',
+      obj.itemLevel         ?? 0,
+      obj.bossData          ?? [],
       wishlist,
+      obj.wishlistUpdatedAt ?? null,
     );
     raider.id = obj.id;
     return raider;

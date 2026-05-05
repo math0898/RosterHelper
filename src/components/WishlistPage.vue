@@ -349,6 +349,36 @@ const selectedRaider = computed(() =>
   props.raiders.find((r) => r.id === selectedRaiderId.value) ?? null,
 );
 
+/**
+ * Compute the age class for the wishlist update timestamp.
+ * @returns {'fresh' | 'stale' | 'old' | null}
+ */
+const wishlistAgeClass = computed(() => {
+  const ts = selectedRaider.value?.wishlistUpdatedAt;
+  if (!ts) return null;
+  const days = (Date.now() - new Date(ts).getTime()) / (1000 * 60 * 60 * 24);
+  if (days < 3)  return 'fresh';
+  if (days < 7)  return 'stale';
+  return 'old';
+});
+
+/**
+ * Human-readable relative time for the wishlist update timestamp.
+ * @returns {string}
+ */
+const wishlistUpdatedLabel = computed(() => {
+  const ts = selectedRaider.value?.wishlistUpdatedAt;
+  if (!ts) return 'Never updated';
+  const ms   = Date.now() - new Date(ts).getTime();
+  const mins  = Math.floor(ms / 60000);
+  const hours = Math.floor(ms / 3600000);
+  const days  = Math.floor(ms / 86400000);
+  if (mins < 1)   return 'Updated just now';
+  if (mins < 60)  return `Updated ${mins} minute${mins !== 1 ? 's' : ''} ago`;
+  if (hours < 24) return `Updated ${hours} hour${hours !== 1 ? 's' : ''} ago`;
+  return `Updated ${days} day${days !== 1 ? 's' : ''} ago`;
+});
+
 /** Fast lookup: lootItemId → WishlistEntry for the selected raider. */
 const wishlistMap = computed(() => {
   const map = new Map();
@@ -518,6 +548,11 @@ function handleRemove(lootItemId) {
           {{ raider.username }} ({{ raider.spec }} {{ raider.wowClass }})
         </option>
       </select>
+      <span
+        v-if="selectedRaider"
+        class="wishlist-updated"
+        :class="`wishlist-updated--${wishlistAgeClass ?? 'old'}`"
+      >{{ wishlistUpdatedLabel }}</span>
     </div>
 
     <!-- No raider selected -->
@@ -1025,5 +1060,32 @@ function handleRemove(lootItemId) {
   word-break: break-all;
   max-height: 300px;
   overflow-y: auto;
+}
+
+/* ── Wishlist update timestamp ── */
+.wishlist-updated {
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 20px;
+  padding: 2px 10px;
+  white-space: nowrap;
+}
+
+.wishlist-updated--fresh {
+  background: rgba(34, 197, 94, 0.15);
+  color: #4ade80;
+  border: 1px solid rgba(34, 197, 94, 0.35);
+}
+
+.wishlist-updated--stale {
+  background: rgba(234, 179, 8, 0.15);
+  color: #facc15;
+  border: 1px solid rgba(234, 179, 8, 0.35);
+}
+
+.wishlist-updated--old {
+  background: rgba(239, 68, 68, 0.13);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.3);
 }
 </style>

@@ -62,6 +62,19 @@ export class RosterStore {
   }
 
   /**
+   * Update the rank for a specific raider and persist.
+   * @param {string} raiderId
+   * @param {string} rank
+   */
+  updateRank(raiderId, rank) {
+    const raider = this._raiders.find((r) => r.id === raiderId);
+    if (raider) {
+      raider.rank = rank;
+      this._save();
+    }
+  }
+
+  /**
    * Add or update a wishlist entry for a specific raider and persist.
    * If an entry for the same lootItemId already exists it is replaced.
    * @param {string} raiderId
@@ -72,6 +85,7 @@ export class RosterStore {
     if (raider) {
       raider.wishlist = raider.wishlist.filter((w) => w.lootItemId !== entry.lootItemId);
       raider.wishlist.push(entry);
+      raider.wishlistUpdatedAt = new Date().toISOString();
       this._save();
     }
   }

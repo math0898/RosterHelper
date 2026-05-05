@@ -37,6 +37,11 @@ function handleUpdateRaiderSpec({ raiderId, spec }) {
   raiders.value = rosterStore.getAll();
 }
 
+function handleUpdateRaiderRank({ raiderId, rank }) {
+  rosterStore.updateRank(raiderId, rank);
+  raiders.value = rosterStore.getAll();
+}
+
 // ─── Boss actions ─────────────────────────────────────────────────────────────
 
 function handleAddBoss(boss) {
@@ -153,6 +158,7 @@ function selectBossView(boss) {
         :active-boss="activeBoss"
         @remove-raider="handleRemoveRaider"
         @update-raider-spec="handleUpdateRaiderSpec"
+        @update-raider-rank="handleUpdateRaiderRank"
       />
     </main>
 
