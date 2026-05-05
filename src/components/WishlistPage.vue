@@ -34,7 +34,7 @@ async function fetchWowauditWishlists() {
   importError.value   = '';
   importResult.value  = null;
   try {
-    const url      = `https://wowaudit.com/v1/wishlists?api_key=${encodeURIComponent(importApiKey.value.trim())}`;
+    const url      = `/api/wowaudit/v1/wishlists?api_key=${encodeURIComponent(importApiKey.value.trim())}`;
     const response = await fetch(url);
     const text     = await response.text();
     if (!response.ok) {
